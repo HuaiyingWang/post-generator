@@ -1,0 +1,915 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>社群貼文生成器</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #eef0f8;
+      --surface:   #ffffff;
+      --surface-h: #f5f4ff;
+      --border:    rgba(110,86,207,.13);
+      --border-a:  rgba(110,86,207,.35);
+      --text:      #0d0b21;
+      --muted:     #555175;
+      --a1:        #7c3aed;
+      --a2:        #db2777;
+      --grad:      linear-gradient(135deg, #7c3aed, #db2777);
+      --shadow:    0 1px 3px rgba(110,86,207,.08), 0 4px 14px rgba(110,86,207,.07);
+      --shadow-md: 0 2px 8px rgba(110,86,207,.10), 0 8px 24px rgba(110,86,207,.09);
+      --radius:    14px;
+      --radius-s:  10px;
+    }
+
+    html, body { height: 100%; }
+
+    body {
+      font-family: 'Noto Sans TC', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* Subtle dot-grid tech background */
+    body::before {
+      content: '';
+      position: fixed; inset: 0;
+      background-image: radial-gradient(circle, rgba(110,86,207,.18) 1px, transparent 1px);
+      background-size: 28px 28px;
+      pointer-events: none; z-index: 0; opacity: .6;
+    }
+    body::after {
+      content: '';
+      position: fixed; inset: 0;
+      background:
+        radial-gradient(ellipse at 10% 10%, rgba(124,58,237,.08) 0%, transparent 50%),
+        radial-gradient(ellipse at 90% 90%, rgba(219,39,119,.06) 0%, transparent 50%);
+      pointer-events: none; z-index: 0;
+    }
+
+    /* ── HEADER ── */
+    .header {
+      position: sticky; top: 0; z-index: 100;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 28px;
+      background: rgba(255,255,255,.85);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border);
+      box-shadow: 0 1px 0 rgba(110,86,207,.06);
+    }
+    .logo { display: flex; align-items: center; gap: 10px; }
+    .logo-icon {
+      width: 34px; height: 34px;
+      background: var(--grad); border-radius: 9px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px; font-weight: 700; color: #fff;
+      box-shadow: 0 2px 8px rgba(124,58,237,.35);
+    }
+    .logo-text {
+      font-size: 17px; font-weight: 700;
+      background: var(--grad);
+      -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+    }
+
+    /* ── LAYOUT ── */
+    .main {
+      position: relative; z-index: 1;
+      display: grid; grid-template-columns: 400px 1fr;
+      height: calc(100vh - 61px); overflow: hidden;
+    }
+
+    /* ── INPUT PANEL ── */
+    .input-panel {
+      padding: 22px 20px 28px;
+      overflow-y: auto; border-right: 1px solid var(--border);
+      display: flex; flex-direction: column; gap: 18px;
+      background: rgba(255,255,255,.6);
+    }
+    .input-panel::-webkit-scrollbar { width: 3px; }
+    .input-panel::-webkit-scrollbar-thumb { background: rgba(124,58,237,.2); border-radius: 2px; }
+
+    .sec-label {
+      font-size: 12px; font-weight: 700;
+      letter-spacing: 1.6px; text-transform: uppercase;
+      color: var(--muted); margin-bottom: 9px;
+    }
+
+    /* Platform */
+    .platform-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 7px; }
+    .platform-btn {
+      display: flex; flex-direction: column; align-items: center; gap: 5px;
+      padding: 13px 6px;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius-s); cursor: pointer; transition: all .2s;
+      color: var(--muted); font-size: 13px; font-weight: 500; font-family: inherit;
+      box-shadow: var(--shadow);
+    }
+    .platform-btn:hover { background: var(--surface-h); color: var(--text); box-shadow: var(--shadow-md); }
+    .platform-btn .p-icon { font-size: 20px; line-height: 1; }
+    .platform-btn.active[data-p="facebook"]  { background: rgba(24,119,242,.08); border-color: rgba(24,119,242,.45); color: #1877F2; box-shadow: 0 0 0 3px rgba(24,119,242,.1); }
+    .platform-btn.active[data-p="instagram"] { background: rgba(220,39,119,.07); border-color: rgba(220,39,119,.4);  color: #be185d; box-shadow: 0 0 0 3px rgba(220,39,119,.1); }
+    .platform-btn.active[data-p="threads"]   { background: rgba(26,23,64,.06);   border-color: rgba(26,23,64,.35);  color: #1a1740; box-shadow: 0 0 0 3px rgba(26,23,64,.08); }
+
+    /* Topic */
+    .topic-input {
+      width: 100%; padding: 12px 14px;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius-s); color: var(--text);
+      font-size: 14.5px; font-family: inherit; resize: none; outline: none;
+      transition: all .2s; line-height: 1.65;
+      box-shadow: var(--shadow);
+    }
+    .topic-input:focus { border-color: var(--border-a); box-shadow: 0 0 0 3px rgba(124,58,237,.1), var(--shadow); }
+    .topic-input::placeholder { color: #6a668c; }
+
+    /* Tone */
+    .tone-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: 7px; }
+    .tone-btn {
+      display: flex; align-items: center; gap: 9px;
+      padding: 11px 13px;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius-s); cursor: pointer; transition: all .2s;
+      color: var(--muted); font-size: 14px; font-weight: 500; font-family: inherit;
+      box-shadow: var(--shadow);
+    }
+    .tone-btn:hover { background: var(--surface-h); color: var(--text); box-shadow: var(--shadow-md); }
+    .tone-btn.active { background: rgba(124,58,237,.08); border-color: var(--border-a); color: var(--a1); box-shadow: 0 0 0 3px rgba(124,58,237,.1); }
+    .tone-emoji { font-size: 17px; line-height: 1; }
+
+    /* CTA chips */
+    .cta-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+    .cta-chip {
+      padding: 6px 14px;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 20px; font-size: 13.5px; color: var(--muted);
+      cursor: pointer; transition: all .2s; user-select: none;
+      box-shadow: var(--shadow);
+    }
+    .cta-chip:hover { background: var(--surface-h); color: var(--text); }
+    .cta-chip.active { background: rgba(124,58,237,.1); border-color: var(--border-a); color: var(--a1); font-weight: 600; }
+
+    /* Generate btn */
+    .gen-btn {
+      width: 100%; padding: 15px;
+      background: var(--grad); border: none; border-radius: var(--radius-s);
+      color: #fff; font-size: 16px; font-weight: 700; font-family: inherit;
+      cursor: pointer; transition: all .3s;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      letter-spacing: .4px; margin-top: 4px;
+      box-shadow: 0 4px 14px rgba(124,58,237,.4);
+    }
+    .gen-btn:hover:not(:disabled) { opacity: .9; transform: translateY(-2px); box-shadow: 0 8px 24px rgba(124,58,237,.5); }
+    .gen-btn:active:not(:disabled) { transform: translateY(0); }
+    .gen-btn:disabled { opacity: .5; cursor: not-allowed; box-shadow: none; }
+    .spinner { width: 17px; height: 17px; border: 2px solid rgba(255,255,255,.4); border-top-color: #fff; border-radius: 50%; animation: spin .7s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── OUTPUT PANEL ── */
+    .output-panel { display: flex; flex-direction: column; overflow: hidden; background: rgba(255,255,255,.45); }
+    .output-top {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 22px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+      background: rgba(255,255,255,.7);
+    }
+    .ver-tabs { display: flex; gap: 3px; background: rgba(110,86,207,.07); padding: 3px; border-radius: 9px; border: 1px solid var(--border); }
+    .ver-tab {
+      padding: 5px 16px; border-radius: 7px; font-size: 14px; font-family: inherit;
+      cursor: pointer; transition: all .2s; color: var(--muted); border: none; background: transparent;
+    }
+    .ver-tab.active { background: var(--grad); color: #fff; font-weight: 600; box-shadow: 0 2px 8px rgba(124,58,237,.35); }
+    .top-actions { display: flex; gap: 7px; }
+    .top-btn {
+      display: flex; align-items: center; gap: 5px;
+      padding: 7px 14px;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 8px; color: var(--muted); font-size: 13.5px;
+      cursor: pointer; transition: all .2s; font-family: inherit;
+      box-shadow: var(--shadow);
+    }
+    .top-btn:hover:not(:disabled) { background: var(--surface-h); color: var(--text); border-color: var(--border-a); }
+    .top-btn:disabled { opacity: .35; cursor: not-allowed; }
+    .top-btn.copied { color: #059669; border-color: rgba(5,150,105,.4); background: rgba(5,150,105,.06); }
+
+    .output-body { flex: 1; overflow-y: auto; padding: 22px; }
+    .output-body::-webkit-scrollbar { width: 3px; }
+    .output-body::-webkit-scrollbar-thumb { background: rgba(124,58,237,.2); border-radius: 2px; }
+
+    /* Empty state */
+    .empty {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      height: 100%; gap: 14px; color: var(--muted);
+    }
+    .empty-icon { font-size: 44px; opacity: .5; }
+    .empty-t { font-size: 16px; text-align: center; line-height: 1.7; color: var(--muted); font-weight: 500; }
+    .empty-s { font-size: 14px; opacity: .85; }
+
+    /* Post card */
+    .post-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); overflow: hidden; max-width: 660px; margin: 0 auto;
+      box-shadow: var(--shadow-md); animation: fadeUp .25s ease;
+    }
+    @keyframes fadeUp { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+
+    .card-head {
+      display: flex; align-items: center; gap: 11px;
+      padding: 14px 18px; border-bottom: 1px solid var(--border);
+      background: #faf9ff;
+    }
+    .avatar {
+      width: 38px; height: 38px; border-radius: 50%;
+      background: var(--grad); display: flex; align-items: center;
+      justify-content: center; font-size: 16px; flex-shrink: 0;
+      box-shadow: 0 2px 8px rgba(124,58,237,.3);
+    }
+    .meta { flex: 1; }
+    .meta-name { font-size: 15px; font-weight: 600; color: var(--text); }
+    .meta-time { font-size: 13px; color: var(--muted); }
+    .p-badge { padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 700; }
+    .p-badge.fb { background: rgba(24,119,242,.1); color: #1877F2; border: 1px solid rgba(24,119,242,.2); }
+    .p-badge.ig { background: rgba(220,39,119,.09); color: #be185d; border: 1px solid rgba(220,39,119,.2); }
+    .p-badge.th { background: rgba(26,23,64,.07); color: #1a1740; border: 1px solid rgba(26,23,64,.15); }
+
+    .card-body {
+      padding: 20px 18px; font-size: 16px; line-height: 1.9;
+      color: var(--text); white-space: pre-wrap; min-height: 100px;
+    }
+    .cursor {
+      display: inline-block; width: 2px; height: 17px;
+      background: var(--a1); animation: blink 1s ease-in-out infinite;
+      vertical-align: text-bottom; margin-left: 1px;
+    }
+    @keyframes blink { 0%,49%{opacity:1;} 50%,100%{opacity:0;} }
+
+    .card-foot {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 18px; border-top: 1px solid var(--border);
+      background: #faf9ff;
+    }
+    .char-c { font-size: 13px; color: var(--muted); font-weight: 500; }
+    .char-c.warn { color: #d97706; }
+    .char-c.over { color: #dc2626; }
+
+    /* Edit buttons */
+    .edit-row {
+      max-width: 660px; margin: 13px auto 0;
+      display: flex; flex-wrap: wrap; gap: 7px;
+    }
+    .edit-btn {
+      display: flex; align-items: center; gap: 6px;
+      padding: 9px 14px;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 8px; color: var(--muted); font-size: 14px;
+      cursor: pointer; transition: all .2s; font-family: inherit;
+      box-shadow: var(--shadow);
+    }
+    .edit-btn:hover:not(:disabled) { background: var(--surface-h); color: var(--a1); border-color: var(--border-a); box-shadow: var(--shadow-md); }
+    .edit-btn:disabled { opacity: .35; cursor: not-allowed; }
+
+    /* Hashtag block */
+    .hashtag-block {
+      max-width: 660px; margin: 13px auto 0;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 14px 18px;
+      box-shadow: var(--shadow);
+    }
+    .ht-label { font-size: 12px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); margin-bottom: 9px; }
+    .ht-list { display: flex; flex-wrap: wrap; gap: 5px; }
+    .ht-tag { padding: 4px 12px; background: rgba(219,39,119,.07); border: 1px solid rgba(219,39,119,.2); border-radius: 20px; font-size: 14px; color: #be185d; cursor: default; font-weight: 500; }
+
+    /* ── TITLE TOOL ── */
+    .title-divider { border: none; border-top: 1px solid var(--border); margin: 4px 0; }
+    .title-btns { display: grid; grid-template-columns: repeat(2,1fr); gap: 7px; margin-top: 9px; }
+    .title-btn {
+      display: flex; align-items: center; justify-content: center; gap: 6px;
+      padding: 10px 8px;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius-s); color: var(--muted);
+      font-size: 14px; cursor: pointer; transition: all .2s; font-family: inherit;
+      box-shadow: var(--shadow);
+    }
+    .title-btn:hover:not(:disabled) { background: var(--surface-h); color: var(--a1); border-color: var(--border-a); box-shadow: var(--shadow-md); }
+    .title-btn:disabled { opacity: .35; cursor: not-allowed; }
+    .title-result {
+      margin-top: 10px; display: none;
+      background: linear-gradient(135deg, rgba(124,58,237,.06), rgba(219,39,119,.04));
+      border: 1px solid rgba(124,58,237,.2);
+      border-radius: var(--radius-s); padding: 12px 14px;
+    }
+    .title-result-label { font-size: 12px; font-weight: 700; letter-spacing: 1.4px; text-transform: uppercase; color: var(--a1); margin-bottom: 7px; }
+    .title-result-text { font-size: 15px; line-height: 1.7; color: var(--text); white-space: pre-wrap; font-weight: 500; }
+    .title-result-footer { display: flex; justify-content: flex-end; margin-top: 10px; }
+    .title-copy-btn {
+      padding: 6px 14px; background: var(--surface); border: 1px solid var(--border);
+      border-radius: 6px; color: var(--muted); font-size: 13px;
+      cursor: pointer; transition: all .2s; font-family: inherit; box-shadow: var(--shadow);
+    }
+    .title-copy-btn:hover { color: var(--a1); border-color: var(--border-a); }
+
+    /* ── TOAST ── */
+    .toast {
+      position: fixed; bottom: 22px; right: 22px;
+      padding: 11px 18px;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 10px; font-size: 15px; color: var(--text); font-weight: 500;
+      transform: translateY(70px); opacity: 0; transition: all .3s;
+      z-index: 2000; pointer-events: none; box-shadow: var(--shadow-md);
+    }
+    .toast.show { transform: translateY(0); opacity: 1; }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 860px) {
+      .main { grid-template-columns: 1fr; height: auto; }
+      .input-panel { border-right: none; border-bottom: 1px solid var(--border); max-height: none; overflow: visible; }
+      .output-panel { height: 75vh; }
+    }
+    @media (max-width: 480px) {
+      .header { padding: 12px 14px; }
+      .logo-text { font-size: 15px; }
+      .input-panel { padding: 16px 14px 24px; }
+      .output-top { padding: 12px 14px; flex-wrap: wrap; gap: 9px; }
+      .output-body { padding: 14px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── HEADER ── -->
+<header class="header">
+  <div class="logo">
+    <div class="logo-icon">✦</div>
+    <div class="logo-text">社群貼文生成器</div>
+  </div>
+</header>
+
+<!-- ── MAIN ── -->
+<main class="main">
+
+  <!-- INPUT PANEL -->
+  <div class="input-panel">
+
+    <!-- Platform -->
+    <div>
+      <div class="sec-label">選擇平台</div>
+      <div class="platform-grid">
+        <button class="platform-btn active" data-p="facebook" onclick="setPlat('facebook',this)">
+          <span class="p-icon">🅕</span><span>Facebook</span>
+        </button>
+        <button class="platform-btn" data-p="instagram" onclick="setPlat('instagram',this)">
+          <span class="p-icon">📸</span><span>Instagram</span>
+        </button>
+        <button class="platform-btn" data-p="threads" onclick="setPlat('threads',this)">
+          <span class="p-icon">🧵</span><span>Threads</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Topic -->
+    <div>
+      <div class="sec-label">主題 / 標題</div>
+      <textarea class="topic-input" id="topic" rows="4"
+        placeholder="輸入你想分享的主題、產品、活動、故事…&#10;&#10;例：夏日限定甜品上市、週末健行心得分享、新品發表活動"></textarea>
+    </div>
+
+    <!-- Tone -->
+    <div>
+      <div class="sec-label">語氣風格</div>
+      <div class="tone-grid">
+        <button class="tone-btn active" data-t="專業" onclick="setTone('專業',this)"><span class="tone-emoji">💼</span>專業</button>
+        <button class="tone-btn" data-t="親切" onclick="setTone('親切',this)"><span class="tone-emoji">🤝</span>親切</button>
+        <button class="tone-btn" data-t="感性" onclick="setTone('感性',this)"><span class="tone-emoji">💖</span>感性</button>
+        <button class="tone-btn" data-t="幽默俏皮" onclick="setTone('幽默俏皮',this)"><span class="tone-emoji">😄</span>幽默俏皮</button>
+        <button class="tone-btn" data-t="熱情鼓舞" onclick="setTone('熱情鼓舞',this)"><span class="tone-emoji">🔥</span>熱情鼓舞</button>
+        <button class="tone-btn" data-t="權威客觀" onclick="setTone('權威客觀',this)"><span class="tone-emoji">📊</span>權威客觀</button>
+        <button class="tone-btn" data-t="急迫" onclick="setTone('急迫',this)"><span class="tone-emoji">⚡</span>急迫</button>
+      </div>
+    </div>
+
+    <!-- CTA -->
+    <div>
+      <div class="sec-label">行動呼籲（選填）</div>
+      <div class="cta-chips">
+        <span class="cta-chip" data-c="留言互動" onclick="setCTA(this)">💬 留言互動</span>
+        <span class="cta-chip" data-c="點擊連結" onclick="setCTA(this)">🔗 點擊連結</span>
+        <span class="cta-chip" data-c="分享給朋友" onclick="setCTA(this)">📤 分享</span>
+        <span class="cta-chip" data-c="限時搶購" onclick="setCTA(this)">⏰ 限時搶購</span>
+        <span class="cta-chip" data-c="追蹤帳號" onclick="setCTA(this)">👆 追蹤</span>
+      </div>
+    </div>
+
+    <!-- Generate -->
+    <button class="gen-btn" id="genBtn" onclick="generate()">
+      <span>✦</span><span>一鍵生成貼文</span>
+    </button>
+
+    <!-- Title Tool -->
+    <hr class="title-divider">
+    <div>
+      <div class="sec-label">✏️ 文案標題工具</div>
+      <textarea class="topic-input" id="titleInput" rows="3"
+        placeholder="輸入或貼上你的標題…&#10;&#10;例：夏日限定新品正式上市"></textarea>
+      <div class="title-btns">
+        <button class="title-btn" onclick="titleAction('rewrite')">🔄 改寫</button>
+        <button class="title-btn" onclick="titleAction('expand')">📝 擴寫</button>
+        <button class="title-btn" onclick="titleAction('strengthen')">💪 強化</button>
+        <button class="title-btn" onclick="titleAction('shorten')">✂️ 縮短</button>
+      </div>
+      <div class="title-result" id="titleResult">
+        <div class="title-result-label">處理結果</div>
+        <div class="title-result-text" id="titleResultText"></div>
+        <div class="title-result-footer">
+          <button class="title-copy-btn" onclick="copyTitle()">⎘ 複製標題</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- OUTPUT PANEL -->
+  <div class="output-panel">
+
+    <div class="output-top">
+      <div class="ver-tabs">
+        <button class="ver-tab active" data-v="1" onclick="setVer(1,this)">版本 1</button>
+        <button class="ver-tab" data-v="2" onclick="setVer(2,this)">版本 2</button>
+        <button class="ver-tab" data-v="3" onclick="setVer(3,this)">版本 3</button>
+      </div>
+      <div class="top-actions">
+        <button class="top-btn" id="copyBtn" onclick="copyPost()" disabled>⎘ 複製</button>
+      </div>
+    </div>
+
+    <div class="output-body" id="outputBody">
+      <div class="empty">
+        <div class="empty-icon">✦</div>
+        <div class="empty-t">填寫左側資訊<br>點擊「一鍵生成貼文」</div>
+        <div class="empty-s">將自動生成 3 個版本供你選擇</div>
+      </div>
+    </div>
+
+  </div>
+</main>
+
+
+<!-- ── TOAST ── -->
+<div class="toast" id="toast"></div>
+
+<script>
+/* ═══════════════════════════════════════
+   STATE
+═══════════════════════════════════════ */
+let plat    = 'facebook';
+let tone    = '專業';
+let cta     = null;
+let curVer  = 1;
+let busy    = false;
+
+const versions  = { 1: null, 2: null, 3: null };
+const htags     = { 1: null, 2: null, 3: null };
+
+const LIMITS = { facebook: 63206, instagram: 2200, threads: 500 };
+const PNAME  = { facebook: 'Facebook', instagram: 'Instagram', threads: 'Threads' };
+
+/* ═══════════════════════════════════════
+   WORKER URL
+═══════════════════════════════════════ */
+const WORKER_URL = 'https://post-generator.love520297.workers.dev';
+
+/* ═══════════════════════════════════════
+   CONTROLS
+═══════════════════════════════════════ */
+function setPlat(p, btn) {
+  plat = p;
+  document.querySelectorAll('.platform-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  render();
+}
+
+function setTone(t, btn) {
+  tone = t;
+  document.querySelectorAll('.tone-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+function setCTA(chip) {
+  const c = chip.dataset.c;
+  if (cta === c) {
+    cta = null;
+    chip.classList.remove('active');
+  } else {
+    document.querySelectorAll('.cta-chip').forEach(c => c.classList.remove('active'));
+    cta = c;
+    chip.classList.add('active');
+  }
+}
+
+function setVer(v, btn) {
+  curVer = v;
+  document.querySelectorAll('.ver-tab').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  render();
+  document.getElementById('copyBtn').disabled = !versions[v];
+}
+
+/* ═══════════════════════════════════════
+   GENERATE
+═══════════════════════════════════════ */
+async function generate() {
+  const topic = document.getElementById('topic').value.trim();
+  if (!topic) { toast('⚠️ 請輸入主題或標題'); return; }
+  if (busy) return;
+
+  busy = true;
+  versions[1] = versions[2] = versions[3] = null;
+  htags[1] = htags[2] = htags[3] = null;
+
+  setVer(1, document.querySelector('[data-v="1"]'));
+
+  const btn = document.getElementById('genBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<div class="spinner"></div><span>生成中…</span>';
+  document.getElementById('copyBtn').disabled = true;
+
+  for (let v = 1; v <= 3; v++) {
+    await genVersion(v, topic);
+  }
+
+  btn.disabled = false;
+  btn.innerHTML = '<span>✦</span><span>重新生成</span>';
+  busy = false;
+}
+
+async function genVersion(v, topic) {
+  const prompt = buildPrompt(topic, v);
+  versions[v] = '';
+  if (v === curVer) render(true);
+
+  try {
+    const res = await fetch(WORKER_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5',
+        max_tokens: 1024,
+        stream: true,
+        messages: [{ role: 'user', content: prompt }]
+      })
+    });
+
+    if (!res.ok) {
+      const e = await res.json().catch(() => ({}));
+      throw new Error(e.error?.message || `HTTP ${res.status}`);
+    }
+
+    await streamSSE(res, v);
+
+  } catch (err) {
+    versions[v] = `⚠️ 生成失敗：${err.message}`;
+    if (v === curVer) render();
+  }
+}
+
+async function streamSSE(res, v) {
+  const reader  = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    const lines = buf.split('\n');
+    buf = lines.pop() ?? '';
+
+    for (const line of lines) {
+      if (!line.startsWith('data: ')) continue;
+      const raw = line.slice(6).trim();
+      if (!raw || raw === '[DONE]') continue;
+      try {
+        const p = JSON.parse(raw);
+        if (p.type === 'content_block_delta' && p.delta?.type === 'text_delta') {
+          versions[v] = (versions[v] || '') + p.delta.text;
+          if (v === curVer) render(true);
+        }
+      } catch (_) {}
+    }
+  }
+
+  // extract hashtags for IG
+  if (plat === 'instagram' && versions[v]) {
+    const m = versions[v].match(/#[\w\u4e00-\u9fa5\uff01-\uff5e]+/g);
+    if (m) htags[v] = [...new Set(m)];
+  }
+
+  if (v === curVer) render();
+  if (v === curVer) document.getElementById('copyBtn').disabled = !versions[v];
+}
+
+/* ═══════════════════════════════════════
+   PROMPT
+═══════════════════════════════════════ */
+function buildPrompt(topic, v) {
+  const pGuide = {
+    facebook: `• 適合長篇，可加入故事、感受與細節
+• 使用 emoji 增添視覺感
+• 建議 100–500 字`,
+    instagram: `• 視覺感強的開頭，第一行就要抓住眼球
+• 適當使用 emoji 增加活潑感
+• 結尾另起一行加入 10–15 個相關 hashtag（格式：#標籤 #標籤）
+• 正文建議 80–250 字`,
+    threads: `• 短而有力，像跟朋友說話的口吻
+• 引發討論或共鳴
+• 500 字以內（含標點符號）`
+  };
+
+  const ctaTxt = cta ? `\n• 自然融入行動呼籲：「${cta}」` : '';
+
+  const variants = [
+    '開門見山，直接切入主題重點，乾淨俐落',
+    '用情境或故事開場，讓讀者有代入感，更有溫度',
+    '以問句或驚喜感開頭，激發好奇心，引發共鳴'
+  ];
+
+  return `你是一位頂尖的社群媒體文案專家，擅長為各大平台撰寫高互動率貼文。
+
+請根據以下資訊，撰寫一篇 ${PNAME[plat]} 貼文：
+
+【主題】${topic}
+【語氣風格】${tone}
+【平台規範】
+${pGuide[plat]}${ctaTxt}
+
+【本版本風格要求】
+${variants[v - 1]}
+
+【核心原則】
+• 文字必須自然真實，像是真人親筆寫的，沒有任何 AI 感
+• 情感真摯，避免過度行銷、廣告味
+• 不要加「標題：」「內文：」等任何標籤或說明
+• 直接輸出貼文內容本身，不需要前言或解釋
+
+請直接輸出貼文：`;
+}
+
+/* ═══════════════════════════════════════
+   EDIT ACTIONS
+═══════════════════════════════════════ */
+async function editPost(action) {
+  const orig = versions[curVer];
+  if (!orig || busy) return;
+
+  const actionMap = {
+    rewrite:  '用完全不同的寫法和句型結構改寫這篇貼文，保持相同主題與語氣',
+    expand:   '將這篇貼文擴寫，加入更多細節、情境描述或故事，讓內容更豐富飽滿',
+    shorten:  `將這篇貼文精簡，保留最核心的訊息，${plat === 'threads' ? '控制在 200 字以內' : '減少約 40% 篇幅'}`,
+    hook:     '只改寫第一句話讓它更有吸引力和抓眼球的力道，其餘內容維持不變',
+    tone_alt: `將這篇貼文改以「${tone === '幽默俏皮' ? '感性' : '幽默俏皮'}」風格重新撰寫`
+  };
+
+  const prompt = `請${actionMap[action]}。
+
+【原始貼文】
+${orig}
+
+【平台】${PNAME[plat]}
+
+請直接輸出修改後的貼文，不需要任何說明或標籤：`;
+
+  busy = true;
+  document.querySelectorAll('.edit-btn').forEach(b => b.disabled = true);
+  document.getElementById('copyBtn').disabled = true;
+
+  const saved = versions[curVer];
+  versions[curVer] = '';
+  htags[curVer] = null;
+  render(true);
+
+  try {
+    const res = await fetch(WORKER_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5',
+        max_tokens: 1024,
+        stream: true,
+        messages: [{ role: 'user', content: prompt }]
+      })
+    });
+
+    if (!res.ok) {
+      const e = await res.json().catch(() => ({}));
+      throw new Error(e.error?.message || `HTTP ${res.status}`);
+    }
+
+    await streamSSE(res, curVer);
+
+  } catch (err) {
+    versions[curVer] = saved;
+    toast(`⚠️ 操作失敗：${err.message}`);
+    render();
+  }
+
+  busy = false;
+}
+
+/* ═══════════════════════════════════════
+   RENDER
+═══════════════════════════════════════ */
+function render(streaming = false) {
+  const body    = document.getElementById('outputBody');
+  const content = versions[curVer];
+
+  if (content === null) {
+    body.innerHTML = `
+      <div class="empty">
+        <div class="empty-icon">✦</div>
+        <div class="empty-t">填寫左側資訊<br>點擊「一鍵生成貼文」</div>
+        <div class="empty-s">將自動生成 3 個版本供你選擇</div>
+      </div>`;
+    return;
+  }
+
+  const limit  = LIMITS[plat];
+  const cnt    = content.length;
+  const cClass = cnt > limit ? 'over' : cnt > limit * .88 ? 'warn' : '';
+  const badge  = { facebook:'fb', instagram:'ig', threads:'th' }[plat];
+
+  const hashHtml = (plat === 'instagram' && htags[curVer] && !streaming)
+    ? `<div class="hashtag-block">
+        <div class="ht-label">Hashtag 建議</div>
+        <div class="ht-list">${htags[curVer].map(t => `<span class="ht-tag">${esc(t)}</span>`).join('')}</div>
+       </div>` : '';
+
+  const editHtml = (!streaming && content)
+    ? `<div class="edit-row">
+        <button class="edit-btn" onclick="editPost('rewrite')">🔄 改寫</button>
+        <button class="edit-btn" onclick="editPost('expand')">📝 擴寫</button>
+        <button class="edit-btn" onclick="editPost('shorten')">✂️ 縮短</button>
+        <button class="edit-btn" onclick="editPost('hook')">🎣 強化開頭</button>
+        <button class="edit-btn" onclick="editPost('tone_alt')">🎭 換風格</button>
+       </div>` : '';
+
+  body.innerHTML = `
+    <div class="post-card">
+      <div class="card-head">
+        <div class="avatar">👤</div>
+        <div class="meta">
+          <div class="meta-name">Your Name</div>
+          <div class="meta-time">剛剛 · 🌐</div>
+        </div>
+        <span class="p-badge ${badge}">${PNAME[plat]}</span>
+      </div>
+      <div class="card-body">${esc(content)}${streaming ? '<span class="cursor"></span>' : ''}</div>
+      <div class="card-foot">
+        <span class="char-c ${cClass}">${cnt.toLocaleString()} / ${limit.toLocaleString()} 字</span>
+      </div>
+    </div>
+    ${editHtml}
+    ${hashHtml}`;
+}
+
+function esc(t) {
+  return String(t)
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;');
+}
+
+/* ═══════════════════════════════════════
+   COPY
+═══════════════════════════════════════ */
+async function copyPost() {
+  const content = versions[curVer];
+  if (!content) return;
+  try {
+    await navigator.clipboard.writeText(content);
+    const btn = document.getElementById('copyBtn');
+    btn.textContent = '✓ 已複製';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.innerHTML = '⎘ 複製'; btn.classList.remove('copied'); }, 2000);
+  } catch (_) {
+    toast('⚠️ 複製失敗，請手動選取文字');
+  }
+}
+
+/* ═══════════════════════════════════════
+   TOAST
+═══════════════════════════════════════ */
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 2800);
+}
+
+/* ═══════════════════════════════════════
+   TITLE TOOL
+═══════════════════════════════════════ */
+let titleBusy = false;
+
+async function titleAction(action) {
+  const input = document.getElementById('titleInput').value.trim();
+  if (!input) { toast('⚠️ 請輸入標題文字'); return; }
+  if (titleBusy) return;
+
+  const actionMap = {
+    rewrite:    '用不同的寫法改寫這個標題，保持核心意思但換一種更吸引人的表達方式',
+    expand:     '將這個標題擴寫成更完整、更有說服力的版本，加入形容詞或情境描述讓它更豐富',
+    strengthen: '強化這個標題的衝擊力與吸引力，讓讀者看到就想繼續看下去',
+    shorten:    '將這個標題精簡縮短，保留最核心的關鍵字，讓它更簡潔有力'
+  };
+
+  const prompt = `請${actionMap[action]}。
+
+【原始標題】
+${input}
+
+要求：
+- 只輸出改寫後的標題，不需要任何說明或標籤
+- 不要加引號
+- 以繁體中文為主
+
+請直接輸出：`;
+
+  titleBusy = true;
+  document.querySelectorAll('.title-btn').forEach(b => b.disabled = true);
+
+  const resultEl = document.getElementById('titleResult');
+  const textEl   = document.getElementById('titleResultText');
+  resultEl.style.display = 'block';
+  textEl.innerHTML = '<span class="cursor"></span>';
+
+  let result = '';
+
+  try {
+    const res = await fetch(WORKER_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5',
+        max_tokens: 256,
+        stream: true,
+        messages: [{ role: 'user', content: prompt }]
+      })
+    });
+
+    if (!res.ok) {
+      const e = await res.json().catch(() => ({}));
+      throw new Error(e.error?.message || `HTTP ${res.status}`);
+    }
+
+    const reader  = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      const lines = buf.split('\n');
+      buf = lines.pop() ?? '';
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        const raw = line.slice(6).trim();
+        if (!raw || raw === '[DONE]') continue;
+        try {
+          const p = JSON.parse(raw);
+          if (p.type === 'content_block_delta' && p.delta?.type === 'text_delta') {
+            result += p.delta.text;
+            textEl.innerHTML = esc(result) + '<span class="cursor"></span>';
+          }
+        } catch (_) {}
+      }
+    }
+    textEl.innerHTML = esc(result.trim());
+
+  } catch (err) {
+    textEl.textContent = `⚠️ 失敗：${err.message}`;
+  }
+
+  titleBusy = false;
+  document.querySelectorAll('.title-btn').forEach(b => b.disabled = false);
+}
+
+async function copyTitle() {
+  const text = document.getElementById('titleResultText').textContent.trim();
+  if (!text) return;
+  try {
+    await navigator.clipboard.writeText(text);
+    toast('✅ 標題已複製');
+  } catch (_) {
+    toast('⚠️ 複製失敗');
+  }
+}
+
+/* ── INIT ── */
+</script>
+</body>
+</html>
